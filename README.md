@@ -7,9 +7,8 @@ I created a script to reset OneDrive.
 
 If you have any problems or feedback, feel free to open an issue or contact me on Discord: **`mati__22`**
 
-=====================
-      CHANGELOG
-=====================
+CHANGELOG
+---
 - v2.0
   - rewrote the whole script
     - should have a better structure
