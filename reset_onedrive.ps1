@@ -1,9 +1,9 @@
 <#
-.Synopsis
+.SYNOPSIS
 This script resets Microsoft OneDrive.
 
 .DESCRIPTION
-This script resets Microsoft OneDrive by stopping the OneDrive process, resetting it, and then closing any Explorer windows and Microsoft Store windows that are open.
+This script stops the Microsoft OneDrive process, resets it, and then closes any Explorer windows and Microsoft Store windows that are open.
 
 .PARAMETER Folders
 An array of folder paths where OneDrive might be installed.
@@ -17,10 +17,71 @@ Resets Microsoft OneDrive using default folder paths.
 Resets Microsoft OneDrive using the specified folder path.
 
 .NOTES
-Created on:   27/03/2024
-Created by:   Matisse Vuylsteke
-Filename:     reset_onedrive.ps1
+Version: v2.0
+File Name: Reset-OneDrive.ps1
+Author: Matisse Vuylsteke
+Date Created: 28/03/2024
 #>
+
+#region FUNCTIONS
+# Check OneDrive locations
+function CheckOneDriveLocations {
+    param (
+        [string[]]$Folders
+    )
+    $foundLocations = @()
+
+    foreach ($folder in $folders) {
+        $OneDriveExe = Join-Path -Path $folder -ChildPath "OneDrive.exe"
+
+        if (Test-Path $OneDriveExe) {
+            $foundLocations += $OneDriveExe
+        }
+    }
+
+    return $foundLocations
+}
+
+# Function to reset OneDrive
+function ResetOneDrive {
+    param (
+        [string[]]$OneDriveLocations
+    )
+
+    $resetSuccessful = $false  # Flag to track if any reset attempt was successful
+
+    # Check if OneDrive is found in any location
+    if (-not ($OneDriveLocations)) {
+        Write-Host "OneDrive is not installed in any of the provided locations." -ForegroundColor Red
+        return $false
+    }
+
+    foreach ($location in $OneDriveLocations) {
+        try {
+            $oneDriveExe = $location
+            # Reset OneDrive
+            Write-Host "Resetting OneDrive in $location..."
+            Start-Process -FilePath $oneDriveExe -ArgumentList "/reset" -Wait -NoNewWindow
+            Start-Sleep -Seconds 5
+
+            # Check if OneDrive process is still running
+            if (Get-Process -Name "OneDrive" -ErrorAction SilentlyContinue) {
+                Write-Host "OneDrive process is still running after reset." -ForegroundColor Yellow
+            } else {
+                Write-Host "OneDrive reset completed in $location"
+                $resetSuccessful = $true  # Set flag to true if reset is successful
+            }
+        }
+        catch {
+            # Catch any errors that occur during the reset process
+            Write-Error -Message ("Error resetting OneDrive: {0}" -f $_.Exception.Message)
+        }
+    }
+    
+    # Return flag indicating if any reset attempt was successful
+    return $resetSuccessful  
+}
+#endregion
 
 # Variables
 $folders = @("$env:LOCALAPPDATA\Microsoft\OneDrive\", "C:\Program Files\Microsoft OneDrive\", "C:\Program Files (x86)\Microsoft OneDrive\")
@@ -31,41 +92,13 @@ wsreset.exe
 
 Start-Sleep -Seconds 5
 
-# Reset OneDrive
-function ResetOneDrive {
-    param (
-        [string[]]$Folders
-    )
+# Call the function to check OneDrive locations
+$OneDriveLocations = CheckOneDriveLocations -Folders $Folders
 
-    foreach ($folder in $Folders){
-        if (Test-Path $folder) {
-            try {
-                $oneDriveExe = Join-Path -Path $folder -ChildPath "OneDrive.exe"
-                if (Test-Path $oneDriveExe) {
-                    Start-Process -FilePath $oneDriveExe -ArgumentList "/reset" -Wait -NoNewWindow
-                    Write-Host "OneDrive reset completed in $folder"
-                    return $true  # Return true if no error occurred
-                } else {
-                    Write-Host "OneDrive executable not found in $folder" -ForegroundColor Red
-                    Start-Sleep -Seconds 1
-                    Write-Host "Checking next folder..." -ForegroundColor Yellow
-                    Start-Sleep -Seconds 5
-                    Write-Host "Resetting..."
-                }
-            }
-            catch {
-                Write-Error "Error resetting OneDrive: " + $_.Exception.Message
-            }
-        } else {
-            Write-Error "Folder $folder not found"
-        }
-    }
-    return $false  # Return false if an error occurred in all folders
-}
+# Call the function to reset OneDrive
+$success = ResetOneDrive -OneDriveLocations $OneDriveLocations
 
-# Call the function
-$success = ResetOneDrive -Folders $folders
-
+# Check if OneDrive reset was successful
 if ($success) {
     # Close Explorer windows
     Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue
@@ -74,5 +107,6 @@ if ($success) {
     Start-Sleep -Seconds 2
     Write-Host "OneDrive reset completed successfully." -ForegroundColor Green
 } else {
-    Write-Host "OneDrive reset encountered errors in all folders." -ForegroundColor Red
+    # Display error message if OneDrive reset encountered errors in all locations or if OneDrive is not installed
+    Write-Host "OneDrive reset encountered errors or is not installed in any of the provided locations." -ForegroundColor Red
 }
